@@ -1,0 +1,45 @@
+---
+title: "Storm Data Analysis"
+author: "Levshinovskiy Mikhail"
+date: "1/25/2021"
+output: html_document
+---
+
+## Data Processing
+
+Read dataset from archive, check if dimensions of data frame are correct. 
+(Expected value: 902297 x 37)
+```{r read_storm_data, cache=TRUE}
+storm_data <- read.csv("./repdata_data_StormData.csv.bz2")
+print(dim(storm_data))
+names(storm_data)
+```
+
+## Results
+  
+### Question 1
+  *Quesion* : Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+  
+To answer this question we will sum number of injures and fatal cases for every event
+type in dataset. Below numbers and *barplot* for 5 the most harmful events are presented.
+
+```{r count_most_harmful_type}
+fatal_cases_by_type <- sort(tapply(storm_data$FATALITIES, storm_data$EVTYPE, sum),
+                            decreasing = T)
+injuries_by_type <- sort(tapply(storm_data$INJURIES, storm_data$EVTYPE, sum),
+                         decreasing = T)
+
+fatal_cases_by_type[1:5]
+injuries_by_type[1:5]
+
+par(mfrow = c(2, 1))
+barplot(fatal_cases_by_type[1:5], col = rgb(1, 0.8, 0.8), 
+        ylab = "Number of fatal cases", cex.names = 0.7, space = 0,
+        ylim = c(0, 6000))
+barplot(injuries_by_type[1:5], col = rgb(0.8, 0.8, 1), 
+        ylab = "Number of injuries", cex.names = 0.7, space = 0,
+        ylim = c(0, 95000))
+```
+  
+As we can see, tornado with 5633 fatalities and 91346 injuries
+has significantly stronger harmful effects than any other type of event
