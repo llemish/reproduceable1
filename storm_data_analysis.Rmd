@@ -2,8 +2,21 @@
 title: "Storm Data Analysis"
 author: "Levshinovskiy Mikhail"
 date: "1/25/2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
+The basic goal of this assignment is to explore the NOAA Storm Database and answer some basic questions about severe weather events. The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
+
+## Synopsis
+
+The analysis on the storm event data shows that the most harmful effect with
+respect to population health have excessive heat with 1797 victims and tornado
+with more than 20 000 injured people. The greatest economic damage are caused by
+flood and drought, all together more that 150 billions dollar. The original dataset 
+starts from 1950, but results were got based on data not earlier than 1996, because
+earlier records were not fulfilled and results can't be relevant.
+
 
 ## Data Processing
 
@@ -14,7 +27,63 @@ storm_data <- read.csv("./repdata_data_StormData.csv.bz2")
 print(dim(storm_data))
 names(storm_data)
 ```
+Dataset description says that before *Jan. 1996* only tornado *EVTYPE* were recorded.
+To compare damage and harmful effects of different events we need to subset data frame
+by that date.
+```{r subset_dataset_by_date}
+storm_data$BGN_DATE <- as.Date(storm_data$BGN_DATE, "%m/%d/%Y %H:%M:%S")
+storm_data <- storm_data[storm_data$BGN_DATE >= '1996-01-01',]
+dim(storm_data)
+```
 
+Dataset description says that there are 48 types of event. Downloaded dataset has much more
+```{r event_types_demo}
+length(levels(storm_data$EVTYPE))
+```
+
+
+Some values in *EVTYPE* are different only because they are written with upper or
+lower cases.  For example:
+```{r upper_lower_example}
+grep("[Cc][Oo][Aa][Ss][Tt][Aa][Ll] [Ss][Tt][Oo][Rr][Mm]", levels(storm_data$EVTYPE), value = T)
+```
+To reduce number of events that are different only because of case, change all of them to
+lower case.
+```{r to_lower}
+storm_data$EVTYPE <- as.factor(tolower(storm_data$EVTYPE))
+length(levels(storm_data$EVTYPE))
+```
+
+Finally we will try to check approximate matching of given *EVTYPES* with types from
+description
+```{r matching_EVTYPE_levels, cache=TRUE}
+dict <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood",
+          "Cold/Wind Chill", "Debris Flow", "Dense Fog", "Dense Smoke",
+          "Drought", "Dust Devil", "Dust Storm", "Excessive Heat",
+          "Extreme Cold/Wind Chill", "Flash Flood", "Flood", "Frost/Freeze",
+          "Funnel Cloud", "Freezing Fog", "Hail", "Heat", "Heavy Rain",
+          "Heavy Snow", "High Surf", "High Wind", "Hurricane (Typhoon)",
+          "Ice Storm", "Lake-Effect Snow", "Lakeshore Flood", "Lightning",
+          "Marine Hail", "Marine High Wind", "Marine Strong Wind",
+          "Marine Thunderstorm Wind", "Rip Current", "Seiche", "Sleet",
+          "Storm Surge/Tide", "Strong WInd", "Thunderstorm Wind", "Tornado",
+          "Tropical Depression", "Tropical Storm", "Tsunami", "Volcanic Ash",
+          "Waterspout", "Wildfire", "Winter Storm", "Winter Weather")
+dict <- tolower(dict)
+
+library(stringdist)
+get_stereotype <- function(ev) {
+  ster <- amatch(ev, dict, maxDist = 4)
+  if (!any(is.na(ster)))
+    return(dict[ster])
+  else
+    return(NA)
+}
+
+storm_data$EVTYPE <- as.factor(sapply(storm_data$EVTYPE, get_stereotype))
+storm_data <- storm_data[!is.na(storm_data$EVTYPE),]
+levels(storm_data$EVTYPE)
+```
 ## Results
   
 ### Question 1
@@ -33,13 +102,73 @@ fatal_cases_by_type[1:5]
 injuries_by_type[1:5]
 
 par(mfrow = c(2, 1))
+
 barplot(fatal_cases_by_type[1:5], col = rgb(1, 0.8, 0.8), 
-        ylab = "Number of fatal cases", cex.names = 0.7, space = 0,
-        ylim = c(0, 6000))
+        ylab = "Number of fatal cases", cex.names = 0.8, space = 0,
+        ylim = c(0, 1800))
 barplot(injuries_by_type[1:5], col = rgb(0.8, 0.8, 1), 
-        ylab = "Number of injuries", cex.names = 0.7, space = 0,
-        ylim = c(0, 95000))
+        ylab = "Number of injuries", cex.names = 0.8, space = 0,
+        ylim = c(0, 21000))
 ```
+
+
+
+As we can see, excessive heat with 1797 fatalities and tornado with 91346 injuries
+have significantly stronger harmful effects than any other type of event
+
+### Question 2
+  *Question* : Across the United States, which types of events have the greatest economic consequences?
   
-As we can see, tornado with 5633 fatalities and 91346 injuries
-has significantly stronger harmful effects than any other type of event
+Economic damage is presented with property damage and crop
+damage. There are two fields for each type: *PRPDMG* and *PROPDMGEXP* for property damage
+and *CROPDMG* and *CROPDMGEXP* for crop damage. To get damage in dollars we need to decode
+values in these fields.
+First function decode character from *PROPDMGEXP* and *CROPDMGEXP* fields to power of exponentiation.
+```{r decodeing_function}
+exp_decodeing <- function(ch) {
+   # h -> hundred(2), k -> thousand(3), m -> million(6), b -> billion(9)
+  if (ch %in% c('h', 'H'))
+    return(2)
+  if (ch %in% c('k', 'K'))
+    return(3)
+  if (ch %in% c('m', 'M'))
+    return(6)
+  if (ch %in% c('b', 'B'))
+    return(9)
+  if (!is.na(as.numeric(ch)))
+    return(as.numeric(ch))
+  if (ch %in% c('', '-', '?', '+'))
+    return(1)
+}
+```
+
+Now we can calculate damages for every type of event and draw barplots for top 5 of them.
+```{r calculate_damage}
+crop_dmg_exp <- sapply(storm_data$CROPDMGEXP, exp_decodeing)
+storm_data$CROPDMG_dollars <- storm_data$CROPDMG * (10 ** crop_dmg_exp)
+prop_dmg_exp <- sapply(storm_data$PROPDMGEXP, exp_decodeing)
+storm_data$PROPDMG_dollars <- storm_data$PROPDMG * (10 ** prop_dmg_exp)
+
+crop_dmg_dollars <- sort(tapply(storm_data$CROPDMG_dollars, storm_data$EVTYPE, sum), 
+                         decreasing = T)
+prop_dmg_dollars <- sort(tapply(storm_data$PROPDMG_dollars, storm_data$EVTYPE, sum),
+                         decreasing = T)
+
+crop_dmg_dollars[1:5]
+prop_dmg_dollars[1:5]
+
+par(fin = c(7, 5))
+par(mfrow = c(2, 1))
+
+barplot(crop_dmg_dollars[1:5], col = rgb(1, 0.8, 0.8), 
+        ylab = "Crop damage in dollars", cex.names = 0.8, space = 0,
+        oma = c(0.5, 0.1, 0.1, 0.1), cex.axis = 0.7)
+
+barplot(prop_dmg_dollars[1:5], col = rgb(0.8, 0.8, 1), 
+        ylab = "Property Damage in dollars", cex.names = 0.8, space = 0,
+        oma = c(0.5, 0.1, 0.1, 0.1), cex.axis = 0.7)
+
+```
+The data shows that total crop damage from drought is more than 13.3 billions dollars and
+property damage from flood is more than 143 billion dollars. These two
+types of events have the greatest economic consequences.
