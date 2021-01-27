@@ -48,9 +48,10 @@ lower cases.  For example:
 grep("[Cc][Oo][Aa][Ss][Tt][Aa][Ll] [Ss][Tt][Oo][Rr][Mm]", levels(storm_data$EVTYPE), value = T)
 ```
 To reduce number of events that are different only because of case, change all of them to
-lower case.
+lower case and remove leading and/or trailing whitespaces.
 ```{r to_lower}
-storm_data$EVTYPE <- as.factor(tolower(storm_data$EVTYPE))
+storm_data$EVTYPE <- tolower(storm_data$EVTYPE)
+storm_data$EVTYPE <- as.factor(trimws(storm_data$EVTYPE))
 length(levels(storm_data$EVTYPE))
 ```
 
@@ -71,17 +72,37 @@ dict <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood",
           "Waterspout", "Wildfire", "Winter Storm", "Winter Weather")
 dict <- tolower(dict)
 
+storm_data$event_type <- rep(FALSE, length(storm_data$EVTYPE))
+
+
 library(stringdist)
-get_stereotype <- function(ev) {
-  ster <- amatch(ev, dict, maxDist = 4)
-  if (!any(is.na(ster)))
+
+get_stereotype <- function(ev, dist) {
+  ster <- amatch(ev, dict, maxDist = dist)
+  if (!(is.na(ster)))
     return(dict[ster])
   else
     return(NA)
 }
 
-storm_data$EVTYPE <- as.factor(sapply(storm_data$EVTYPE, get_stereotype))
-storm_data <- storm_data[!is.na(storm_data$EVTYPE),]
+find_matches <- function(dataset, dist, max_dist = 4){
+  for (i in 1:length(storm_data$EVTYPE)){
+    if (!storm_data[i, 'event_type']) {
+      type_mach <- get_stereotype(storm_data[i, 'EVTYPE'], dist)
+      if (!is.na(type_mach)){
+        storm_data[i, 'EVTYPE'] <- type_mach
+        storm_data[i, 'event_type'] <- TRUE
+      }
+    }
+  }
+  # if (dist < max_dist) {
+  #   find_matches(storm_data, dist = dist + 1)
+  # }
+}
+
+find_matches(storm_data, 1)
+# storm_data$EVTYPE <- as.factor(sapply(storm_data$EVTYPE, get_stereotype))
+# storm_data <- storm_data[!is.na(storm_data$EVTYPE),]
 levels(storm_data$EVTYPE)
 ```
 ## Results
