@@ -79,22 +79,23 @@ library(stringdist)
 
 get_stereotype <- function(ev, dist) {
   ster <- amatch(ev, dict, maxDist = dist)
-  if (!(is.na(ster)))
+  if (!any(is.na(ster)))
     return(dict[ster])
   else
     return(NA)
 }
 
 find_matches <- function(dataset, dist, max_dist = 4){
-  for (i in 1:length(storm_data$EVTYPE)){
-    if (!storm_data[i, 'event_type']) {
-      type_mach <- get_stereotype(storm_data[i, 'EVTYPE'], dist)
-      if (!is.na(type_mach)){
-        storm_data[i, 'EVTYPE'] <- type_mach
-        storm_data[i, 'event_type'] <- TRUE
-      }
-    }
-  }
+  
+  # for (i in 1:length(storm_data$EVTYPE)){
+  #   if (!storm_data[i, 'event_type']) {
+  #     type_mach <- get_stereotype(storm_data[i, 'EVTYPE'], dist)
+  #     if (!is.na(type_mach)){
+  #       storm_data[i, 'EVTYPE'] <- type_mach
+  #       storm_data[i, 'event_type'] <- TRUE
+  #     }
+  #   }
+  # }
   # if (dist < max_dist) {
   #   find_matches(storm_data, dist = dist + 1)
   # }
