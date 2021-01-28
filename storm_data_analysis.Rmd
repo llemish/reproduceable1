@@ -3,19 +3,19 @@ title: "Storm Data Analysis"
 author: "Levshinovskiy Mikhail"
 date: "1/25/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 The basic goal of this assignment is to explore the NOAA Storm Database and answer some basic questions about severe weather events. The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
 
 ## Synopsis
 
 The analysis on the storm event data shows that the most harmful effect with
-respect to population health have excessive heat with 1797 victims and tornado
+respect to population health have excessive heat with 2034 victims and tornado
 with more than 20 000 injured people. The greatest economic damage are caused by
-flood and drought, all together more that 150 billions dollar. The original dataset 
+coastal floods and drought, all together more that 157 billions dollar. The original dataset 
 starts from 1950, but results were got based on data not earlier than 1996, because
-earlier records were not fulfilled and results can't be relevant.
+earlier records include only tornados and results can't be relevant.
 
 
 ## Data Processing
@@ -56,7 +56,7 @@ length(levels(storm_data$EVTYPE))
 ```
 
 Finally we will try to check approximate matching of given *EVTYPES* with types from
-description
+description, and delete all measurements that we can't classifies.
 ```{r matching_EVTYPE_levels, cache=TRUE}
 dict <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood",
           "Cold/Wind Chill", "Debris Flow", "Dense Fog", "Dense Smoke",
@@ -72,52 +72,62 @@ dict <- c("Astronomical Low Tide", "Avalanche", "Blizzard", "Coastal Flood",
           "Waterspout", "Wildfire", "Winter Storm", "Winter Weather")
 dict <- tolower(dict)
 
-storm_data$event_type <- rep(FALSE, length(storm_data$EVTYPE))
-
-
-library(stringdist)
-
-get_stereotype <- function(ev, dist) {
-  ster <- amatch(ev, dict, maxDist = dist)
-  if (!any(is.na(ster)))
-    return(dict[ster])
-  else
-    return(NA)
+find_matches <- function(dataset, max_dist = 4){
+    library(stringdist)
+    dataset$event_type <- rep(NA, length(dataset$EVTYPE))
+    ev_lvls <- levels(dataset$EVTYPE)
+    for (i in 1:length(ev_lvls)){
+        new_flag <- T
+        dist = 1
+        while (new_flag & (dist <= max_dist)){
+            if (length(grep("[()]", ev_lvls[i])) > 0){
+                break
+            }
+            new_lvl <- get_stereotype(ev_lvls[i], dist)
+            if (!is.na(new_lvl)){
+                dataset[dataset$EVTYPE == ev_lvls[i],]['event_type'] <- new_lvl
+                new_flag <- F
+            } else {
+                dist <- dist + 1
+            }
+        }
+        if (new_flag) {
+            dataset[dataset$EVTYPE == ev_lvls[i],]['event_type'] <- "unclassified"
+        }
+    }
+    return(dataset)
 }
 
-find_matches <- function(dataset, dist, max_dist = 4){
-  
-  # for (i in 1:length(storm_data$EVTYPE)){
-  #   if (!storm_data[i, 'event_type']) {
-  #     type_mach <- get_stereotype(storm_data[i, 'EVTYPE'], dist)
-  #     if (!is.na(type_mach)){
-  #       storm_data[i, 'EVTYPE'] <- type_mach
-  #       storm_data[i, 'event_type'] <- TRUE
-  #     }
-  #   }
-  # }
-  # if (dist < max_dist) {
-  #   find_matches(storm_data, dist = dist + 1)
-  # }
+get_stereotype <- function(old_lvl, dist){
+    a <- grep(old_lvl, dict)
+    if (length(a) > 0){
+        return(dict[a[1]])
+        break
+    }
+    ster <- amatch(old_lvl, dict, maxDist = dist)
+    if (!is.na(ster)){
+        return(dict[ster])
+    } else {
+        return(NA)
+    }
 }
 
-find_matches(storm_data, 1)
-# storm_data$EVTYPE <- as.factor(sapply(storm_data$EVTYPE, get_stereotype))
-# storm_data <- storm_data[!is.na(storm_data$EVTYPE),]
-levels(storm_data$EVTYPE)
+storm_data <- find_matches(storm_data)
+storm_data <- storm_data[storm_data$event_type != "unclassified",]
+storm_data$event_type <- as.factor(storm_data$event_type)
 ```
 ## Results
   
 ### Question 1
-  *Quesion* : Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+  *Quesion* : Across the United States, which types of events (as indicated in the event_type variable) are most harmful with respect to population health?
   
 To answer this question we will sum number of injures and fatal cases for every event
 type in dataset. Below numbers and *barplot* for 5 the most harmful events are presented.
 
 ```{r count_most_harmful_type}
-fatal_cases_by_type <- sort(tapply(storm_data$FATALITIES, storm_data$EVTYPE, sum),
+fatal_cases_by_type <- sort(tapply(storm_data$FATALITIES, storm_data$event_type, sum),
                             decreasing = T)
-injuries_by_type <- sort(tapply(storm_data$INJURIES, storm_data$EVTYPE, sum),
+injuries_by_type <- sort(tapply(storm_data$INJURIES, storm_data$event_type, sum),
                          decreasing = T)
 
 fatal_cases_by_type[1:5]
@@ -135,7 +145,7 @@ barplot(injuries_by_type[1:5], col = rgb(0.8, 0.8, 1),
 
 
 
-As we can see, excessive heat with 1797 fatalities and tornado with 91346 injuries
+As we can see, excessive heat with 2034 fatalities and tornado with 20667 injuries
 have significantly stronger harmful effects than any other type of event
 
 ### Question 2
@@ -171,9 +181,9 @@ storm_data$CROPDMG_dollars <- storm_data$CROPDMG * (10 ** crop_dmg_exp)
 prop_dmg_exp <- sapply(storm_data$PROPDMGEXP, exp_decodeing)
 storm_data$PROPDMG_dollars <- storm_data$PROPDMG * (10 ** prop_dmg_exp)
 
-crop_dmg_dollars <- sort(tapply(storm_data$CROPDMG_dollars, storm_data$EVTYPE, sum), 
+crop_dmg_dollars <- sort(tapply(storm_data$CROPDMG_dollars, storm_data$event_type, sum), 
                          decreasing = T)
-prop_dmg_dollars <- sort(tapply(storm_data$PROPDMG_dollars, storm_data$EVTYPE, sum),
+prop_dmg_dollars <- sort(tapply(storm_data$PROPDMG_dollars, storm_data$event_type, sum),
                          decreasing = T)
 
 crop_dmg_dollars[1:5]
@@ -192,5 +202,5 @@ barplot(prop_dmg_dollars[1:5], col = rgb(0.8, 0.8, 1),
 
 ```
 The data shows that total crop damage from drought is more than 13.3 billions dollars and
-property damage from flood is more than 143 billion dollars. These two
+property damage from flood is more than 144 billion dollars. These two
 types of events have the greatest economic consequences.
